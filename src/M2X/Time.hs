@@ -19,10 +19,11 @@ data Time = Time
 
 instance FromJSON Time
 
-type API = "time" :> Get '[JSON] Time
-type API_V2 = "v2" :> API
+type TIME_API = "time" :> Get '[JSON] Time
+type TIME_API_V2 = "v2" :> TIME_API
 
-api :: Proxy API_V2
+api :: Proxy TIME_API_V2
 api = Proxy
 
+time :: ClientM Time
 time = client api

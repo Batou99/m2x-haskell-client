@@ -1,17 +1,22 @@
 module Main where
 
-import Network.HTTP.Client (newManager, defaultManagerSettings)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import M2X.Time (time, Time)
-import Servant.Client
-
-query :: ClientM Time
-query = time
+import M2X.Time (time)
+import M2X.Device (Device(..), catalogSearch, DevicePaginatedListing(..))
+import M2X.Client (run)
+import System.Environment (lookupEnv)
 
 main :: IO ()
 main = do
-  manager <- newManager tlsManagerSettings
-  res <- runClientM query (ClientEnv manager (BaseUrl Https "api-m2x.att.com" 443 ""))
-  case res of
+  key <- lookupEnv "KEY"
+  res <- run time
+  case res of 
     Left err -> putStrLn $ "Error: " ++ show err
     Right t -> print t
+  {-res <- run $ getCatalog key)-}
+  {-case res of -}
+    {-Left err -> putStrLn $ "Error: " ++ show err-}
+    {-Right t -> print t-}
+  res <- run $ catalogSearch key (Just "MoviePoster") Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+  case res of 
+    Left err -> putStrLn $ "Error: " ++ show err
+    Right t -> print $ map name (devices t)
