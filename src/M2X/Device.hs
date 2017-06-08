@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 
 module M2X.Device where
 
@@ -21,6 +22,11 @@ import Data.Time (UTCTime)
 import Text.Read (readMaybe)
 import Data.Foldable (asum)
 import Control.Applicative
+import Data.String (fromString)
+import qualified Data.HashMap.Lazy as HML
+
+mergeAeson :: [Value] -> Value
+mergeAeson = Object . HML.unions . map (\(Object x) -> x)
 
 type Metadata = [(String, String)]
 
@@ -96,6 +102,105 @@ data DevicePaginatedListing = DevicePaginatedListing { devices :: [Device]
 instance FromJSON DevicePaginatedListing where
     parseJSON = genericParseJSON $ defaultOptions { fieldLabelModifier = camelTo2 '_'}
 
+data MultipleFilterOp 
+    = StreamGt Double
+    | StreamGte Double
+    | StreamLt Double
+    | StreamLte Double
+    deriving (Show, Eq, Generic)
+
+instance ToJSON MultipleFilterOp where
+    toJSON = genericToJSON
+      defaultOptions { constructorTagModifier = drop 6 . map toLower
+                     , sumEncoding = ObjectWithSingleField }
+
+data SingleFilterOp
+    = StreamEq Double
+    | StreamMatch String
+    deriving (Show, Eq, Generic)
+
+instance ToJSON SingleFilterOp where
+    toJSON = genericToJSON $ defaultOptions { constructorTagModifier = drop 6 . map toLower,
+                                              sumEncoding = ObjectWithSingleField }
+
+data StreamMultipleFilter = StreamMultipleFilter { fieldName :: String, ops :: [MultipleFilterOp]}
+    deriving (Eq, Show)
+
+instance ToJSON StreamMultipleFilter where
+    toJSON (StreamMultipleFilter fieldName ops) =
+        object [fromString fieldName .= mergeAeson (map toJSON ops)]
+
+data StreamSingleFilter = StreamSingleFilter { fieldName :: String, ops :: SingleFilterOp }
+    deriving (Eq, Show)
+
+instance ToJSON StreamSingleFilter where
+    toJSON (StreamSingleFilter fieldName op) = object [fromString fieldName .= toJSON op]
+
+data StreamFilter = StreamFilter [StreamMultipleFilter] [StreamSingleFilter]
+    deriving (Eq, Show)
+
+instance ToJSON StreamFilter where
+    toJSON (StreamFilter multipleFilters singleFilters) = 
+        let aesonMaps = map toJSON multipleFilters ++ map toJSON singleFilters
+        in object ["streams" .= mergeAeson aesonMaps]
+
+data MetadataSingleFilter = MetadataSingleFilter { fieldName :: String, value :: String }
+    deriving (Eq, Show)
+
+instance ToJSON MetadataSingleFilter where
+    toJSON (MetadataSingleFilter fieldName value) =
+        object [fromString fieldName .= object ["match" .= value]]
+
+newtype MetadataFilter = MetadataFilter [MetadataSingleFilter] deriving (Show, Eq, Generic)
+
+instance ToJSON MetadataFilter where
+    toJSON (MetadataFilter filters) = object ["metadata" .= mergeAeson (map toJSON filters)]
+
+data LocationUnit = Mi | Miles | Km deriving (Show, Eq)
+
+data LocationPoint = LocationPoint { latitude :: Double, longitude :: Double }
+    deriving (Show, Eq, Generic, ToJSON)
+
+data LocationWithinCircle
+    = LocationWithinCircle { point :: LocationPoint
+                           , unit :: LocationUnit
+                           , radius :: Double }
+    deriving (Show, Eq)
+
+instance ToJSON LocationWithinCircle where
+    toJSON (LocationWithinCircle point unit radius) =
+        object ["within_circle" .= 
+            object [ "center" .= toJSON point
+                   , "radius" .= object [fromString (map toLower $ show unit) .= radius ]]]
+
+newtype LocationWithinPolygon = LocationWithinPolygon [LocationPoint]
+  deriving (Show, Eq, Generic)
+
+data NoLocation = NoLocation deriving (Show, Eq, Generic)
+
+instance ToJSON NoLocation where
+    toJSON NoLocation = "none"
+
+instance ToJSON LocationWithinPolygon where
+    toJSON (LocationWithinPolygon points) = object ["within_polygon" .= map toJSON points]
+
+data LocationFilter 
+    = LocationFilterWithinCircle LocationWithinCircle
+    | LocationFilterWithinPolygon LocationWithinPolygon
+    | LocationNone NoLocation
+    deriving (Show, Eq, Generic)
+
+instance ToJSON LocationFilter where
+    toJSON = genericToJSON
+      defaultOptions { constructorTagModifier = const "location" 
+                     , sumEncoding = ObjectWithSingleField }
+
+data Filter 
+    = Stream StreamFilter 
+    | Location LocationFilter 
+    | Metadata MetadataFilter
+    deriving (Show, Eq, Generic, ToJSON)
+
 data Collection = Collection { id :: String
                              , parent :: Maybe String
                              , name :: String
@@ -139,6 +244,10 @@ type TagsParam     = Maybe [Tag]
 type SerialParam   = Maybe [Tag]
 type DirParam      = Maybe SortDir
 type SortParam     = Maybe SortBy
+newtype FilterReqBody = FilterReqBody [Filter] deriving (Show, Eq)
+
+instance ToJSON FilterReqBody where
+    toJSON (FilterReqBody filters) = mergeAeson (map toJSON filters)
 
 instance ToHttpApiData SortBy where
     toUrlPiece = toUrlPiece . show
@@ -160,11 +269,12 @@ type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String
                                              :> QueryParam "serial" [Tag]
                                              :> QueryParam "dir" SortDir
                                              :> QueryParam "sort" SortBy
+                                             :> ReqBody '[JSON] FilterReqBody
                                              :> Get '[JSON] DevicePaginatedListing
 
 api :: Proxy DeviceApi
 api = Proxy
 
 getCatalog :: AuthParam -> ClientM DevicePaginatedListing
-catalogSearch :: AuthParam -> NameParam -> DescParam -> PageParam -> LimitParam -> TagsParam -> SerialParam -> DirParam -> SortParam -> ClientM DevicePaginatedListing
+catalogSearch :: AuthParam -> NameParam -> DescParam -> PageParam -> LimitParam -> TagsParam -> SerialParam -> DirParam -> SortParam -> FilterReqBody -> ClientM DevicePaginatedListing
 getCatalog :<|> catalogSearch = client api
