@@ -7,4 +7,4 @@ extra-deps:
 - datetime-0.3.1
 - hspec-2.4.3
 - QuickCheck-2.9.2
-resolver: lts-8.15
+resolver: lts-8.18
