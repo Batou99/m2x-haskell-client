@@ -23,7 +23,6 @@ import Text.Read (readMaybe)
 import Data.Foldable (asum)
 import Control.Applicative
 import Data.String (fromString)
-import GHC.Exts    (fromList)
 import qualified Data.HashMap.Lazy as HML
 
 mergeAeson :: [Value] -> Value
@@ -168,7 +167,7 @@ data LocationFilter
                            , radius :: Double }
     | LocationWithinPolygon [LocationPoint]
     | NoLocation
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq)
 
 instance ToJSON LocationFilter where
     toJSON (LocationWithinCircle point unit radius) =
@@ -179,7 +178,7 @@ instance ToJSON LocationFilter where
     toJSON (LocationWithinPolygon points) = 
         object ["location" .=
             object ["within_polygon" .= map toJSON points]]
-    toJSON NoLocation = Object $ fromList [("location", "none")]
+    toJSON NoLocation = object ["location" .= ("none" :: String)]
 
 data Filter 
     = Stream StreamFilter 
