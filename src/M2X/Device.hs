@@ -235,15 +235,8 @@ data Distribution = Distribution { id :: String
 data SortBy        = Created | Name deriving (Show, Eq)
 data SortDir       = Asc | Desc deriving (Show, Eq)
 type Tag           = String
-type AuthParam     = Maybe String
-type NameParam     = Maybe String
-type DescParam     = Maybe String
-type PageParam     = Maybe Int
-type LimitParam    = Maybe Int
-type TagsParam     = Maybe [Tag]
-type SerialParam   = Maybe [Tag]
-type DirParam      = Maybe SortDir
-type SortParam     = Maybe SortBy
+type Serial        = String
+type AuthHeader    = Maybe String
 newtype FilterReqBody = FilterReqBody [Filter] deriving (Show, Eq)
 
 instance ToJSON FilterReqBody where
@@ -255,7 +248,7 @@ instance ToHttpApiData SortBy where
 instance ToHttpApiData SortDir where
     toUrlPiece = toUrlPiece . show
 
-instance ToHttpApiData [Tag] where
+instance ToHttpApiData [String] where
     toUrlPiece = toUrlPiece . intersperse ","
 
 type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String 
@@ -266,7 +259,7 @@ type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String
                                              :> QueryParam "page" Int
                                              :> QueryParam "limit" Int
                                              :> QueryParam "tags" [Tag]
-                                             :> QueryParam "serial" [Tag]
+                                             :> QueryParam "serial" [Serial]
                                              :> QueryParam "dir" SortDir
                                              :> QueryParam "sort" SortBy
                                              :> ReqBody '[JSON] FilterReqBody
@@ -275,6 +268,31 @@ type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String
 api :: Proxy DeviceApi
 api = Proxy
 
-getCatalog :: AuthParam -> ClientM DevicePaginatedListing
-catalogSearch :: AuthParam -> NameParam -> DescParam -> PageParam -> LimitParam -> TagsParam -> SerialParam -> DirParam -> SortParam -> FilterReqBody -> ClientM DevicePaginatedListing
+data CatalogSearchParams = CatalogSearchParams { deviceName :: Maybe String
+                                               , desc :: Maybe String
+                                               , page :: Maybe Int
+                                               , limit :: Maybe Int
+                                               , tags :: Maybe [Tag]
+                                               , serial :: Maybe [Tag]
+                                               , dir :: Maybe SortDir
+                                               , sort :: Maybe SortBy
+                                               , reqBody :: FilterReqBody}
+
+defaultCatalogSearchParams :: CatalogSearchParams
+defaultCatalogSearchParams = CatalogSearchParams { deviceName = Nothing
+                                                 , desc = Nothing
+                                                 , page = Just 1
+                                                 , limit = Just 1000
+                                                 , tags = Nothing
+                                                 , serial = Nothing
+                                                 , dir = Just Asc
+                                                 , sort = Just Name
+                                                 , reqBody = FilterReqBody [] }
+
+getCatalog :: AuthHeader -> ClientM DevicePaginatedListing
+catalogSearch :: AuthHeader -> Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe [Serial] -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
 getCatalog :<|> catalogSearch = client api
+
+catalogSearchFromParams :: AuthHeader -> CatalogSearchParams -> ClientM DevicePaginatedListing
+catalogSearchFromParams key (CatalogSearchParams deviceName desc page limit tags serial dir sort reqBody) =
+    catalogSearch key deviceName desc page limit tags serial dir sort reqBody
