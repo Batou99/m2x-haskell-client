@@ -17,7 +17,7 @@ main = do
     {-Left err -> putStrLn $ "Error: " ++ show err-}
     {-Right t -> print t-}
   let params = defaultCatalogSearchParams { deviceName = Just "MoviePoster"
-                                          , reqBody = FilterReqBody [Location $ LocationNone NoLocation] }
+                                          , reqBody = FilterReqBody [Location NoLocation] }
   res <- run $ catalogSearchFromParams key params
   case res of 
     Left err -> putStrLn $ "Error: " ++ show err

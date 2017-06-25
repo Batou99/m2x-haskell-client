@@ -23,6 +23,7 @@ import Text.Read (readMaybe)
 import Data.Foldable (asum)
 import Control.Applicative
 import Data.String (fromString)
+import GHC.Exts    (fromList)
 import qualified Data.HashMap.Lazy as HML
 
 mergeAeson :: [Value] -> Value
@@ -161,39 +162,24 @@ data LocationUnit = Mi | Miles | Km deriving (Show, Eq)
 data LocationPoint = LocationPoint { latitude :: Double, longitude :: Double }
     deriving (Show, Eq, Generic, ToJSON)
 
-data LocationWithinCircle
+data LocationFilter 
     = LocationWithinCircle { point :: LocationPoint
                            , unit :: LocationUnit
                            , radius :: Double }
-    deriving (Show, Eq)
-
-instance ToJSON LocationWithinCircle where
-    toJSON (LocationWithinCircle point unit radius) =
-        object ["within_circle" .= 
-            object [ "center" .= toJSON point
-                   , "radius" .= object [fromString (map toLower $ show unit) .= radius ]]]
-
-newtype LocationWithinPolygon = LocationWithinPolygon [LocationPoint]
-  deriving (Show, Eq, Generic)
-
-data NoLocation = NoLocation deriving (Show, Eq, Generic)
-
-instance ToJSON NoLocation where
-    toJSON NoLocation = "none"
-
-instance ToJSON LocationWithinPolygon where
-    toJSON (LocationWithinPolygon points) = object ["within_polygon" .= map toJSON points]
-
-data LocationFilter 
-    = LocationFilterWithinCircle LocationWithinCircle
-    | LocationFilterWithinPolygon LocationWithinPolygon
-    | LocationNone NoLocation
+    | LocationWithinPolygon [LocationPoint]
+    | NoLocation
     deriving (Show, Eq, Generic)
 
 instance ToJSON LocationFilter where
-    toJSON = genericToJSON
-      defaultOptions { constructorTagModifier = const "location" 
-                     , sumEncoding = ObjectWithSingleField }
+    toJSON (LocationWithinCircle point unit radius) =
+        object ["location" .=
+            object ["within_circle" .= 
+                object [ "center" .= toJSON point
+                       , "radius" .= object [fromString (map toLower $ show unit) .= radius ]]]]
+    toJSON (LocationWithinPolygon points) = 
+        object ["location" .=
+            object ["within_polygon" .= map toJSON points]]
+    toJSON NoLocation = Object $ fromList [("location", "none")]
 
 data Filter 
     = Stream StreamFilter 
