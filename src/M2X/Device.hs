@@ -219,10 +219,14 @@ data Distribution = Distribution { id :: String
 
 data SortBy        = Created | Name deriving (Show, Eq)
 data SortDir       = Asc | Desc deriving (Show, Eq)
+data StreamValues = AllStreams Bool | SomeStreams [String] deriving (Show, Eq)
+data Triggers     = SomeTriggers [String] | AllTriggers deriving (Show, Eq)
+data CommandStatus = Pending | Rejected | Processing deriving (Show, Eq)
+newtype FilterReqBody = FilterReqBody [Filter] deriving (Show, Eq)
+type ID            = String
 type Tag           = String
 type Serial        = String
 type AuthHeader    = Maybe String
-newtype FilterReqBody = FilterReqBody [Filter] deriving (Show, Eq)
 
 instance ToJSON FilterReqBody where
     toJSON (FilterReqBody filters) = mergeAeson (map toJSON filters)
@@ -236,10 +240,25 @@ instance ToHttpApiData SortDir where
 instance ToHttpApiData [String] where
     toUrlPiece = toUrlPiece . intersperse ","
 
-type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String 
-                                      :> Get '[JSON] DevicePaginatedListing
-            :<|> "v2/devices/catalog/search" :> Header "X-M2X-API" String 
-                                             :> QueryParam "name" String
+instance ToHttpApiData Triggers where
+    toUrlPiece AllTriggers = "*"
+    toUrlPiece (SomeTriggers values) = (toUrlPiece . intersperse ",") values
+
+instance ToHttpApiData StreamValues where
+    toUrlPiece (AllStreams b) = toUrlPiece . map toLower $ show b
+    toUrlPiece (SomeStreams s) = toUrlPiece s
+
+instance ToHttpApiData CommandStatus where
+    toUrlPiece = toUrlPiece . show
+
+instance ToHttpApiData Visibility where
+    toUrlPiece = toUrlPiece . map toLower . show
+
+instance ToHttpApiData Status where
+    toUrlPiece = toUrlPiece . map toLower . show
+
+type DeviceApi = "v2/devices/catalog" :> Get '[JSON] DevicePaginatedListing
+            :<|> "v2/devices/catalog/search" :> QueryParam "name" String
                                              :> QueryParam "description" String
                                              :> QueryParam "page" Int
                                              :> QueryParam "limit" Int
@@ -249,35 +268,120 @@ type DeviceApi = "v2/devices/catalog" :> Header "X-M2X-API" String
                                              :> QueryParam "sort" SortBy
                                              :> ReqBody '[JSON] FilterReqBody
                                              :> Get '[JSON] DevicePaginatedListing
+            :<|> "v2/devices" :> Header "X-M2X-API" String 
+                              :> QueryParam "include_stream_values" StreamValues
+                              :> QueryParam "ids" [ID]
+                              :> QueryParam "name" String
+                              :> QueryParam "description" String
+                              :> QueryParam "page" Int
+                              :> QueryParam "limit" Int
+                              :> QueryParam "tags" [Tag]
+                              :> QueryParam "status" Status
+                              :> QueryParam "visibility" Visibility
+                              :> QueryParam "modified_since" UTCTime
+                              :> QueryParam "unmodified_since" UTCTime
+                              :> QueryParam "serial" [Serial]
+                              :> QueryParam "collection" ID
+                              :> QueryParam "distribution" ID
+                              :> QueryParam "triggers" [String]
+                              :> QueryParam "activated_triggers" Triggers
+                              :> QueryParam "inactive_triggers" Triggers
+                              :> QueryParam "enabled_triggers" Triggers
+                              :> QueryParam "disabled_triggers" Triggers
+                              :> QueryParam "command_status" CommandStatus
+                              :> QueryParam "command_name" String
+                              :> QueryParam "command_name" UTCTime
+                              :> QueryParam "dir" SortDir
+                              :> QueryParam "sort" SortBy
+                              :> ReqBody '[JSON] FilterReqBody
+                              :> Get '[JSON] DevicePaginatedListing
 
 api :: Proxy DeviceApi
 api = Proxy
 
-data CatalogSearchParams = CatalogSearchParams { deviceName :: Maybe String
-                                               , desc :: Maybe String
-                                               , page :: Maybe Int
-                                               , limit :: Maybe Int
-                                               , tags :: Maybe [Tag]
-                                               , serial :: Maybe [Tag]
-                                               , dir :: Maybe SortDir
-                                               , sort :: Maybe SortBy
-                                               , reqBody :: FilterReqBody}
+data CatalogSearchParams = CatalogSearchParams { cspName :: Maybe String
+                                               , cspDesc :: Maybe String
+                                               , cspPage :: Maybe Int
+                                               , cspLimit :: Maybe Int
+                                               , cspTags :: Maybe [Tag]
+                                               , cspSerial :: Maybe [Tag]
+                                               , cspDir :: Maybe SortDir
+                                               , cspSort :: Maybe SortBy
+                                               , cspReqBody :: FilterReqBody}
+
+data DevicesParams = DevicesParams { dpIncludeStreamValues :: Maybe StreamValues
+                                   , dpIds :: Maybe [ID]
+                                   , dpName :: Maybe String
+                                   , dpDescription :: Maybe String
+                                   , dpPage :: Maybe Int
+                                   , dpLimit :: Maybe Int
+                                   , dpTags :: Maybe [Tag]
+                                   , dpStatus :: Maybe Status
+                                   , dpVisibility :: Maybe Visibility
+                                   , dpModifiedSince :: Maybe UTCTime
+                                   , dpUnmodifiedSince :: Maybe UTCTime
+                                   , dpSerial :: Maybe [Serial]
+                                   , dpCollection :: Maybe ID
+                                   , dpDistribution :: Maybe ID
+                                   , dpTriggers :: Maybe [String]
+                                   , dpActivatedTriggers :: Maybe Triggers
+                                   , dpInactiveTriggers :: Maybe Triggers
+                                   , dpEnabledTriggers :: Maybe Triggers
+                                   , dpDisabledTriggers :: Maybe Triggers
+                                   , dpCommandStatus :: Maybe CommandStatus
+                                   , dpCommandName :: Maybe String
+                                   , dpCommandSince :: Maybe UTCTime
+                                   , dpDir :: Maybe SortDir
+                                   , dpSort :: Maybe SortBy
+                                   , dpReqBody :: FilterReqBody }
 
 defaultCatalogSearchParams :: CatalogSearchParams
-defaultCatalogSearchParams = CatalogSearchParams { deviceName = Nothing
-                                                 , desc = Nothing
-                                                 , page = Just 1
-                                                 , limit = Just 1000
-                                                 , tags = Nothing
-                                                 , serial = Nothing
-                                                 , dir = Just Asc
-                                                 , sort = Just Name
-                                                 , reqBody = FilterReqBody [] }
+defaultCatalogSearchParams = CatalogSearchParams { cspName = Nothing
+                                                 , cspDesc = Nothing
+                                                 , cspPage = Just 1
+                                                 , cspLimit = Just 100
+                                                 , cspTags = Nothing
+                                                 , cspSerial = Nothing
+                                                 , cspDir = Just Asc
+                                                 , cspSort = Just Name
+                                                 , cspReqBody = FilterReqBody [] }
 
-getCatalog :: AuthHeader -> ClientM DevicePaginatedListing
-catalogSearch :: AuthHeader -> Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe [Serial] -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
-getCatalog :<|> catalogSearch = client api
+defaultDevicesParams :: DevicesParams
+defaultDevicesParams = DevicesParams { dpIncludeStreamValues = Nothing 
+                                     , dpIds = Nothing
+                                     , dpName = Nothing
+                                     , dpDescription = Nothing
+                                     , dpPage = Just 1
+                                     , dpLimit = Just 100
+                                     , dpTags = Nothing
+                                     , dpStatus = Nothing
+                                     , dpVisibility = Nothing
+                                     , dpModifiedSince = Nothing
+                                     , dpUnmodifiedSince = Nothing
+                                     , dpSerial = Nothing
+                                     , dpCollection = Nothing
+                                     , dpDistribution = Nothing
+                                     , dpTriggers = Nothing
+                                     , dpActivatedTriggers = Nothing
+                                     , dpInactiveTriggers = Nothing
+                                     , dpEnabledTriggers = Nothing
+                                     , dpDisabledTriggers = Nothing
+                                     , dpCommandStatus = Nothing
+                                     , dpCommandName = Nothing
+                                     , dpCommandSince = Nothing
+                                     , dpDir = Just Asc
+                                     , dpSort = Just Name
+                                     , dpReqBody = FilterReqBody [] }
 
-catalogSearchFromParams :: AuthHeader -> CatalogSearchParams -> ClientM DevicePaginatedListing
-catalogSearchFromParams key (CatalogSearchParams deviceName desc page limit tags serial dir sort reqBody) =
-    catalogSearch key deviceName desc page limit tags serial dir sort reqBody
+getCatalog :: ClientM DevicePaginatedListing
+catalogSearch :: Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe [Serial] -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
+getDevices :: AuthHeader -> Maybe StreamValues -> Maybe [ID] -> Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe Status -> Maybe Visibility -> Maybe UTCTime -> Maybe UTCTime -> Maybe [Serial] -> Maybe ID -> Maybe ID -> Maybe [String] -> Maybe Triggers -> Maybe Triggers -> Maybe Triggers -> Maybe Triggers -> Maybe CommandStatus -> Maybe String -> Maybe UTCTime -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
+getCatalog :<|> catalogSearch :<|> getDevices = client api
+
+catalogSearchFromParams :: CatalogSearchParams -> ClientM DevicePaginatedListing
+catalogSearchFromParams (CatalogSearchParams deviceName desc page limit tags serial dir sort reqBody) =
+    catalogSearch deviceName desc page limit tags serial dir sort reqBody
+
+getDevicesFromParams :: AuthHeader -> DevicesParams -> ClientM DevicePaginatedListing
+getDevicesFromParams key (DevicesParams includeStreamValues ids deviceName description page limit tags status visibility modifiedSince unmodifiedSince serial collection distribution triggers activatedTriggers inactiveTriggers enabledTriggers disabledTriggers commandStatus commandName commandSince dir sort reqBody) =
+    getDevices key includeStreamValues ids deviceName description page limit tags status visibility modifiedSince unmodifiedSince serial collection distribution triggers activatedTriggers inactiveTriggers enabledTriggers disabledTriggers commandStatus commandName commandSince dir sort reqBody
