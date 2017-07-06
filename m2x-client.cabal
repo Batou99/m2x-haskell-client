@@ -32,6 +32,7 @@ library
                      , either
                      , containers
                      , unordered-containers
+                     , text
   exposed-modules:     M2X.Device
                      , M2X.Types
                      , M2X.Time
