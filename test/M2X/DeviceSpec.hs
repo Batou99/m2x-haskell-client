@@ -18,17 +18,18 @@ main = hspec spec
 spec = 
     context "general" $ do
         let d10 = 10 :: Double
-        let d20 = 20 :: Double
-        let d70 = 70 :: Double
-        let i10 = 10 :: Int
-        let i20 = 20 :: Int
+            d20 = 20 :: Double
+            d70 = 70 :: Double
+            i10 = 10 :: Int
+            i20 = 20 :: Int
 
         describe "toJSON generates correct JSON data for" $ do
             let gt = StreamGt 10
-            let eq = StreamEq 10
-            let lt = StreamLt 20
-            let lte = StreamLte 70
-            let match = StreamMatch "Madrid"
+                eq = StreamEq 10
+                lt = StreamLt 20
+                lte = StreamLte 70
+                match = StreamMatch "Madrid"
+                point = LocationPoint 10 20
 
             it "MultipleFilterOp" $
                 toJSON gt `shouldBe` object ["gt" .= d10]
@@ -44,17 +45,16 @@ spec =
                 let singleFilters = 
                         [ StreamSingleFilter "location" match
                         , StreamSingleFilter "hour" eq ]
-                let multipleFilters = 
+                    multipleFilters = 
                         [ StreamMultipleFilter "temperature" [gt, lt]
                         , StreamMultipleFilter "speed" [gt, lte]]
-                let expectation = object ["streams" .= object
+                    expectation = object ["streams" .= object
                         [ "temperature" .= object ["gt" .= d10, "lt" .= d20]
                         , "speed"       .= object ["gt" .= d10, "lte" .= d70]
                         , "location"    .= object ["match" .= ("Madrid" :: String)]
                         , "hour"        .= object ["eq" .= d10]]]
-                let aeson = toJSON (StreamFilter multipleFilters singleFilters)
+                    aeson = toJSON (StreamFilter multipleFilters singleFilters)
                 aeson `shouldBe` expectation
-            let point = LocationPoint 10 20
             it "LocationPoint" $
                 toJSON point `shouldBe` object ["latitude" .= d10, "longitude" .= d20]
             it "LocationWithinCircle" $
@@ -77,7 +77,8 @@ spec =
             it "TagResult" $
                 decode "{\"tag #1\": 10}" `shouldBe` Just(TagResult "tag #1" i10)
             it "TagResultList" $
-                decode "{ \"tags\": [{\"tag #1\": 10}, {\"tag #2\": 20}] }" `shouldBe` Just (TagResultList [TagResult "tag #1" i10, TagResult "tag #2" i20])
+                decode "{ \"tags\": [{\"tag #1\": 10}, {\"tag #2\": 20}] }" `shouldBe`
+                    Just (TagResultList [TagResult "tag #1" i10, TagResult "tag #2" i20])
       {-describe "StreamFilter" $ do-}
           {-it "Generates correct JSON data" $-}
               {-toJSON (StreamFilter ("temperature", StreamEq 12)) `shouldBe` object ["temperature" .= object ["eq" .= (12 ::Double)]]-}
