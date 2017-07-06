@@ -4,8 +4,6 @@ module M2X.Client where
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Client
-import Data.HexString
-import Servant.Common.Req (Req, addHeader)
 
 
 apiUrl :: String
