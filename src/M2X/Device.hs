@@ -24,6 +24,7 @@ import Data.Foldable (asum)
 import Control.Applicative
 import Data.String (fromString)
 import qualified Data.HashMap.Lazy as HML
+import Data.Text (pack, unpack)
 
 mergeAeson :: [Value] -> Value
 mergeAeson = Object . HML.unions . map (\(Object x) -> x)
@@ -227,6 +228,17 @@ type ID            = String
 type Tag           = String
 type Serial        = String
 type AuthHeader    = Maybe String
+data TagResult     = TagResult { name :: String, numberOfDevicesTagged :: Int } deriving (Show, Eq)
+data TagResultList = TagResultList [TagResult] deriving (Show, Eq)
+
+instance FromJSON TagResult where
+    parseJSON (Object v) =
+        let (k, _) = head (HML.toList v)
+        in TagResult (unpack k) <$> v .: k
+    parseJSON _ = fail "Invalid JSON data"
+
+instance FromJSON TagResultList where
+    parseJSON (Object v) = TagResultList <$> v .: "tags"
 
 instance ToJSON FilterReqBody where
     toJSON (FilterReqBody filters) = mergeAeson (map toJSON filters)
@@ -295,6 +307,8 @@ type DeviceApi = "v2/devices/catalog" :> Get '[JSON] DevicePaginatedListing
                               :> QueryParam "sort" SortBy
                               :> ReqBody '[JSON] FilterReqBody
                               :> Get '[JSON] DevicePaginatedListing
+            :<|> "v2/devices/tags" :> Header "X-M2X-API" String 
+                                   :> Get '[JSON] TagResultList
 
 api :: Proxy DeviceApi
 api = Proxy
@@ -376,7 +390,7 @@ defaultDevicesParams = DevicesParams { dpIncludeStreamValues = Nothing
 getCatalog :: ClientM DevicePaginatedListing
 catalogSearch :: Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe [Serial] -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
 getDevices :: AuthHeader -> Maybe StreamValues -> Maybe [ID] -> Maybe String -> Maybe String -> Maybe Int -> Maybe Int -> Maybe [Tag] -> Maybe Status -> Maybe Visibility -> Maybe UTCTime -> Maybe UTCTime -> Maybe [Serial] -> Maybe ID -> Maybe ID -> Maybe [String] -> Maybe Triggers -> Maybe Triggers -> Maybe Triggers -> Maybe Triggers -> Maybe CommandStatus -> Maybe String -> Maybe UTCTime -> Maybe SortDir -> Maybe SortBy -> FilterReqBody -> ClientM DevicePaginatedListing
-getCatalog :<|> catalogSearch :<|> getDevices = client api
+getCatalog :<|> catalogSearch :<|> getDevices :<|> getTags = client api
 
 catalogSearchFromParams :: CatalogSearchParams -> ClientM DevicePaginatedListing
 catalogSearchFromParams (CatalogSearchParams deviceName desc page limit tags serial dir sort reqBody) =
