@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
-module M2X.DeviceSpec where
+module M2X.DeviceAPISpec where
 
 import Test.Hspec
 import Test.QuickCheck
-import M2X.Device
+import M2X.DeviceAPI
+import M2X.DeviceTypes
 import Data.Aeson
 import Data.String (fromString)
 

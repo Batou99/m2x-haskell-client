@@ -1,7 +1,8 @@
 module Main where
 
 import M2X.Time (time)
-import M2X.Device 
+import M2X.DeviceAPI
+import M2X.DeviceTypes
 import M2X.Client (run)
 import System.Environment (lookupEnv)
 
@@ -16,8 +17,9 @@ main = do
   {-case res of -}
     {-Left err -> putStrLn $ "Error: " ++ show err-}
     {-Right t -> print t-}
-  let params = defaultCatalogSearchParams { cspName = Just "MoviePoster"
-                                          , cspReqBody = FilterReqBody [Location NoLocation] }
+  let point = LocationPoint 0 0
+  let circle = LocationWithinCircle (LocationPoint 0 0) Km 0.1
+  let params = defaultCatalogSearchParams { cspReqBody = FilterReqBody [Location circle] }
   res <- run $ catalogSearchFromParams params
   case res of 
     Left err -> putStrLn $ "Error: " ++ show err
